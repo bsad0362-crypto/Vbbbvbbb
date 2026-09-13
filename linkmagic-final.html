@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LinkMagic — Link Preview Generator</title>
+<style>
+  :root{
+    --bg:#0d1117;
+    --panel:#151b23;
+    --border:#232b36;
+    --text:#e6edf3;
+    --muted:#8b949e;
+    --accent:#3fb950;
+    --accent-dim:#1f4a29;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    padding:20px 14px 60px;
+  }
+  .wrap{max-width:640px;margin:0 auto;}
+  h1{font-size:1.4rem;margin:6px 0 2px;letter-spacing:-0.02em;}
+  .sub{color:var(--muted);font-size:0.88rem;margin:0 0 22px;line-height:1.5;}
+
+  label{display:block;font-size:0.8rem;color:var(--muted);margin:16px 0 6px;}
+  input, textarea{
+    width:100%;background:var(--panel);border:1px solid var(--border);color:var(--text);
+    padding:11px 12px;border-radius:8px;font-size:0.95rem;font-family:inherit;
+  }
+  input:focus, textarea:focus{outline:none;border-color:var(--accent);}
+  textarea{resize:vertical;min-height:60px;}
+  .hint{font-size:0.75rem;color:var(--muted);margin-top:4px;line-height:1.5;}
+
+  .file-label{
+    display:block;margin:14px 0 6px;background:var(--accent-dim);color:var(--accent);
+    border:1px solid var(--accent);padding:12px;border-radius:8px;font-size:0.88rem;
+    text-align:center;cursor:pointer;
+  }
+  input[type="file"]{width:100%;color:var(--muted);font-size:0.8rem;padding:8px 0;}
+
+  button.generate{
+    width:100%;margin-top:24px;background:var(--accent);color:#04220a;border:none;
+    padding:14px;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;
+  }
+  button.generate:active{opacity:0.85;}
+
+  .output{margin-top:26px;display:none;}
+  .output.show{display:block;}
+  .output-label{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .output-label span{font-size:0.85rem;color:var(--muted);}
+  .copy-btn{
+    background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent);
+    padding:6px 14px;border-radius:6px;font-size:0.8rem;cursor:pointer;
+  }
+  .copy-btn.copied{background:var(--accent);color:#04220a;}
+
+  pre{
+    background:#010409;border:1px solid var(--border);border-radius:8px;padding:14px;
+    overflow-x:auto;font-family:var(--mono);font-size:0.78rem;line-height:1.5;
+    color:#c9d1d9;white-space:pre-wrap;word-break:break-all;max-height:340px;
+  }
+
+  .preview-card{
+    margin-top:22px;border:1px solid var(--border);border-radius:10px;overflow:hidden;
+    background:var(--panel);display:none;
+  }
+  .preview-card.show{display:block;}
+  .preview-img{width:100%;aspect-ratio:1.91/1;object-fit:cover;background:#000;display:block;}
+  .preview-body{padding:12px 14px;}
+  .preview-domain{font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;}
+  .preview-title{font-size:0.95rem;font-weight:600;margin:4px 0 2px;}
+  .preview-desc{font-size:0.82rem;color:var(--muted);}
+
+  .note{
+    margin-top:22px;padding:12px 14px;background:var(--panel);border:1px solid var(--border);
+    border-left:3px solid var(--accent);border-radius:6px;font-size:0.8rem;color:var(--muted);line-height:1.6;
+  }
+  .note b{color:var(--text);}
+  .steps{margin-top:22px;}
+  .steps li{font-size:0.85rem;color:var(--muted);margin-bottom:8px;line-height:1.5;}
+  .steps b{color:var(--text);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>LinkMagic</h1>
+  <p class="sub">Apni marzi ki picture, title aur description ke saath link preview banao — jo Facebook per clean dikhe aur seedha aapke URL per redirect kare.</p>
+
+  <div class="note" id="setupNote">
+    <b>Pehli baar setup (1 minute, sirf ek baar karna hai):</b><br/>
+    1. <b>api.imgbb.com</b> kholo → free account banao (sirf email se)<br/>
+    2. Login karne ke baad dashboard mein apni <b>API Key</b> milegi — usko copy karo<br/>
+    3. Niche wale box mein paste karke "Save Key" dabao
+  </div>
+
+  <label for="apiKeyInput">Apni imgbb API Key (ek baar save karo)</label>
+  <div style="display:flex;gap:8px;">
+    <input id="apiKeyInput" type="text" placeholder="Yahan API key paste karo" style="flex:1;" />
+    <button class="copy-btn" style="white-space:nowrap;" onclick="saveApiKey()">Save Key</button>
+  </div>
+  <div class="hint" id="apiKeyStatus"></div>
+
+  <label for="targetUrl" style="margin-top:22px;">1. Target URL (jahan redirect hoga)</label>
+  <input id="targetUrl" type="url" placeholder="https://trickizm.com/your-article" />
+  <div class="hint">Jo bhi website ya article kholna hai, uska pura link daalo</div>
+
+  <label for="galleryPick">2. Apni Picture Chuno</label>
+  <label for="galleryPick" class="file-label" id="pickLabel">🖼️ Gallery se Picture Chuno</label>
+  <input type="file" id="galleryPick" accept="image/*" onchange="onGalleryPick(event)" />
+  <img id="galleryPreview" style="display:none;width:100%;max-height:220px;object-fit:cover;border-radius:8px;margin-top:8px;border:1px solid var(--border);" />
+  <div class="hint" id="uploadStatus"></div>
+  <input type="hidden" id="imgUrl" value="" />
+
+  <label for="titleTxt">3. Title</label>
+  <input id="titleTxt" type="text" maxlength="90" placeholder="Jo heading dikhani hai" />
+
+  <label for="descTxt">4. Description</label>
+  <textarea id="descTxt" maxlength="200" placeholder="Title ke neeche chhota sa text"></textarea>
+
+  <button class="generate" onclick="generateCode()">Link Preview Banao</button>
+
+  <div class="preview-card" id="previewCard">
+    <img id="prevImg" class="preview-img" src="" alt="preview" />
+    <div class="preview-body">
+      <div class="preview-domain" id="prevDomain"></div>
+      <div class="preview-title" id="prevTitle">Title</div>
+      <div class="preview-desc" id="prevDesc">Description</div>
+    </div>
+  </div>
+
+  <div class="output" id="output">
+    <div class="output-label">
+      <span>index.html</span>
+      <button class="copy-btn" id="copyBtn" onclick="copyCode()">Copy</button>
+    </div>
+    <pre id="codeBlock"></pre>
+  </div>
+
+  <div class="note">
+    <b>Spam se bachne ke liye:</b> ye tool sirf clean OG meta tags + ek seedha redirect use karta hai — koi cloaking ya trick nahi. Bots aur real users dono ko same content dikhta hai, isliye Facebook flag nahi karta.
+  </div>
+
+  <ol class="steps">
+    <li><b>API Key Setup (sirf ek baar):</b> <b>api.imgbb.com</b> per jao → free account banao (email se) → dashboard mein "Add API Key" per tap karo → jo key mile use niche wale code mein <b>YOUR_API_KEY</b> ki jagah daalo</li>
+    <li><b>1.</b> Upar wala code copy karo</li>
+    <li><b>2.</b> GitHub per naya repository banao</li>
+    <li><b>3.</b> Naya file banao naam <b>index.html</b> rakh kar, copy kiya hua code paste karke commit karo</li>
+    <li><b>4.</b> Settings → Pages mein jaake Branch "main" select karke Save karo</li>
+    <li><b>5.</b> 1-2 minute baad jo link milega (jaise <b>username.github.io/repo-name/</b>) — wahi link Facebook per share karo</li>
+  </ol>
+</div>
+
+<script>
+function esc(str){
+  return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function saveApiKey(){
+  const key = document.getElementById('apiKeyInput').value.trim();
+  const status = document.getElementById('apiKeyStatus');
+  if(!key){
+    status.style.color = '#f85149';
+    status.textContent = 'Key khali hai — pehle imgbb se copy karke paste karo';
+    return;
+  }
+  localStorage.setItem('linkmagic_imgbb_key', key);
+  status.style.color = 'var(--accent)';
+  status.textContent = '✅ Key save ho gayi. Ab gallery se picture choose karo.';
+}
+
+function loadApiKey(){
+  const key = localStorage.getItem('linkmagic_imgbb_key');
+  if(key){
+    document.getElementById('apiKeyInput').value = key;
+    document.getElementById('apiKeyStatus').style.color = 'var(--accent)';
+    document.getElementById('apiKeyStatus').textContent = '✅ Key pehle se saved hai';
+    document.getElementById('setupNote').style.display = 'none';
+  }
+}
+loadApiKey();
+
+function onGalleryPick(event){
+  const file = event.target.files[0];
+  if(!file) return;
+
+  const localUrl = URL.createObjectURL(file);
+  const img = document.getElementById('galleryPreview');
+  img.src = localUrl;
+  img.style.display = 'block';
+  document.getElementById('prevImg').src = localUrl;
+  document.getElementById('previewCard').classList.add('show');
+
+  const status = document.getElementById('uploadStatus');
+  const label = document.getElementById('pickLabel');
+
+  const apiKey = localStorage.getItem('linkmagic_imgbb_key');
+  if(!apiKey){
+    status.style.color = '#f85149';
+    status.textContent = '❌ Pehle upar API key save karo, phir dobara picture chuno.';
+    return;
+  }
+
+  status.style.color = '#e3b341';
+  status.textContent = '⏳ Upload ho raha hai, thoda ruko...';
+  label.textContent = '⏳ Uploading...';
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  fetch('https://api.imgbb.com/1/upload?key=' + apiKey, {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.json())
+  .then(data => {
+    if(data && data.success && data.data && data.data.url){
+      document.getElementById('imgUrl').value = data.data.url;
+      status.style.color = 'var(--accent)';
+      status.textContent = '✅ Picture upload ho gayi, ab "Link Preview Banao" dabao';
+      label.textContent = '🖼️ Gallery se Picture Chuno (badalne ke liye tap karo)';
+    } else {
+      const msg = (data && data.error && data.error.message) ? data.error.message : 'unknown error';
+      status.style.color = '#f85149';
+      status.textContent = '❌ Upload fail: ' + msg + '. API key check karo.';
+      label.textContent = '🖼️ Gallery se Picture Chuno';
+    }
+  })
+  .catch(err => {
+    status.style.color = '#f85149';
+    status.textContent = '❌ Auto-upload fail ho gaya. Internet check karo, dubara try karo.';
+    label.textContent = '🖼️ Gallery se Picture Chuno';
+  });
+}
+
+function generateCode(){
+  const url = document.getElementById('targetUrl').value.trim();
+  const img = document.getElementById('imgUrl').value.trim();
+  const title = document.getElementById('titleTxt').value.trim() || 'Untitled';
+  const desc = document.getElementById('descTxt').value.trim() || '';
+
+  if(!url){
+    alert('Target URL zaroori hai');
+    return;
+  }
+
+  let domain = '';
+  try{ domain = new URL(url).hostname; }catch(e){ domain = ''; }
+
+  const code = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="refresh" content="0;url=${esc(url)}">
+<title>${esc(title)}</title>
+
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="${esc(url)}">
+<meta property="og:title" content="${esc(title)}">
+<meta property="og:description" content="${esc(desc)}">
+<meta property="og:image" content="${esc(img)}">
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(title)}">
+<meta name="twitter:description" content="${esc(desc)}">
+<meta name="twitter:image" content="${esc(img)}">
+
+<script>
+  window.location.replace("${url.replace(/"/g,'\\"')}");
+<\/script>
+</head>
+<body>
+  <p>Redirecting to <a href="${esc(url)}">${esc(title)}</a>...</p>
+</body>
+</html>`;
+
+  document.getElementById('codeBlock').textContent = code;
+  document.getElementById('output').classList.add('show');
+
+  document.getElementById('prevImg').src = img || document.getElementById('prevImg').src || '';
+  document.getElementById('prevDomain').textContent = domain;
+  document.getElementById('prevTitle').textContent = title;
+  document.getElementById('prevDesc').textContent = desc;
+  document.getElementById('previewCard').classList.add('show');
+
+  document.getElementById('output').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function copyCode(){
+  const codeEl = document.getElementById('codeBlock');
+  const code = codeEl.textContent;
+  const btn = document.getElementById('copyBtn');
+
+  function showCopied(){
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(()=>{ btn.textContent='Copy'; btn.classList.remove('copied'); }, 1500);
+  }
+
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(code).then(showCopied).catch(fallbackCopy);
+  } else {
+    fallbackCopy();
+  }
+
+  function fallbackCopy(){
+    // Fallback: select the text so the user can long-press → Copy manually
+    const range = document.createRange();
+    range.selectNodeContents(codeEl);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    try{
+      const ok = document.execCommand('copy');
+      if(ok){ showCopied(); }
+      else { alert('Auto-copy kaam nahi kiya. Code ab select ho gaya hai — neeche wale box ko tap-and-hold karke "Copy" choose karo.'); }
+    }catch(e){
+      alert('Auto-copy kaam nahi kiya. Code ab select ho gaya hai — neeche wale box ko tap-and-hold karke "Copy" choose karo.');
+    }
+    sel.removeAllRanges();
+  }
+}
+</script>
+</body>
+</html>
